@@ -1,5 +1,6 @@
 #include "core/allocator.h"
 #include <utility>
+#include <sys/mman.h>
 
 namespace infini
 {
@@ -32,8 +33,19 @@ namespace infini
         // =================================== 作业 ===================================
         // TODO: 设计一个算法来分配内存，返回起始地址偏移量
         // =================================== 作业 ===================================
-
-        return 0;
+        
+        this->used += size;
+        for (auto [offset, space] : free_blocks) {
+            if (space >= size) {
+                free_blocks.erase(offset);
+                if (space > size) {
+                    free_blocks[offset + size] = space - size;
+                }
+                return offset;
+            }
+        }
+        this->peak += size;
+        return this->peak - size;
     }
 
     void Allocator::free(size_t addr, size_t size)
@@ -44,6 +56,21 @@ namespace infini
         // =================================== 作业 ===================================
         // TODO: 设计一个算法来回收内存
         // =================================== 作业 ===================================
+
+        this->used -= size;
+        if (addr + size == this->peak) this->peak -= size;
+        for (auto [offset, len] : free_blocks) {
+            if (addr == offset + len) {
+                free_blocks[offset] = len + size;
+                return;
+            } 
+            if (addr + size == offset) {
+                free_blocks[addr] = size + len;
+                free_blocks.erase(offset);
+                return;
+            }
+        }
+        free_blocks[addr] = size;
     }
 
     void *Allocator::getPtr()
