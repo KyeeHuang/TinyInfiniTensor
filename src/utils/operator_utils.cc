@@ -9,8 +9,22 @@ Shape infer_broadcast(const Shape &A, const Shape &B) {
     // TODO：对 A 和 B 进行双向广播，返回广播后的形状。
     // REF: https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md
     // =================================== 作业 ===================================
+
+    size_t max_rank = std::max(A.size(), B.size());
+    Shape result(max_rank, 1);
+
+    for (size_t i = 0; i < max_rank; i++) {
+        size_t a_dim = (i < A.size()) ? A[A.size() - 1 - i] : 1;
+        size_t b_dim = (i < B.size()) ? B[B.size() - 1 - i] : 1;
+        
+        if (a_dim == b_dim || a_dim == 1 || b_dim == 1) {
+            result[max_rank - 1 - i] = std::max(a_dim, b_dim);
+        } else {
+            throw std::invalid_argument("Shapes not support boardcast");
+        }
+    }
     
-    return {};
+    return result; 
 }
 
 int get_real_axis(const int &axis, const int &rank) {
