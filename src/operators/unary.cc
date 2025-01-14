@@ -68,7 +68,7 @@ namespace infini
         // REF: https://onnx.ai/onnx/operators/onnx__Cast.html#cast-21
         // =================================== 作业 ===================================
         vector<DataType> vec_dtype(inputs.size());
-        for (int i = 0; i < inputs.size(); i++) {
+        for (size_t i = 0; i < inputs.size(); i++) {
             vec_dtype[i] = getOutputDataType();
         }
         
