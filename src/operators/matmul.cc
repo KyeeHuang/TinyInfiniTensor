@@ -42,7 +42,7 @@ namespace infini
         n = b_dims[b_dims.size()-1];
         k = a_dims[a_dims.size()-1];
 
-        for (int i = 0; i < max_rank; i++) {
+        for (size_t i = 0; i < max_rank; i++) {
             if (i == 0) {
                 result[max_rank - 1 - i] = b_dims[b_dims.size() - 1];
                 continue;
