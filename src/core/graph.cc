@@ -2,6 +2,9 @@
 #include <algorithm>
 #include <numeric>
 #include <queue>
+#include "operators/matmul.h"
+#include "operators/transpose.h"
+#include <unordered_set>
 
 namespace infini
 {
@@ -106,6 +109,153 @@ namespace infini
         // 1. 去除冗余的算子（例如，两个相邻的算子都是 transpose 算子，且做的是相反的操作，可以将其全部删除）
         // 2. 合并算子（例如，矩阵乘算子中含有属性transA、transB，如果其输入存在transpose，且对最后两个维度做交换，就可以将transpose融入到矩阵乘算子的属性中去）
         // =================================== 作业 ===================================
+
+        std::unordered_set<UidBaseType> deleted_ops;
+        std::unordered_set<UidBaseType> deleted_tensors;
+        OpVec optimized_ops;
+        TensorVec optimized_tensors;
+
+        for (auto &op : ops) {
+            if (deleted_ops.count(op->getGuid())) continue;
+            if (op->getOpType() == OpType::Transpose) {
+                auto fops = op->getPredecessors();
+                for (auto &fop : fops) {
+                    if (fop->getOpType() == OpType::Transpose) {
+                        auto transop = std::dynamic_pointer_cast<TransposeObj>(op);
+                        Shape dims = transop->getPermute();
+                        auto transfop = std::dynamic_pointer_cast<TransposeObj>(fop);
+                        Shape fdims = transfop->getPermute();
+                        
+                        if (dims.size() != fdims.size()) continue;
+
+                        bool IsDiff = false;
+                        size_t tranCnt = 0;
+                        for (size_t i = 0; i < dims.size(); i++) {
+                            if (dims[i] != fdims[i]) {
+                                IsDiff = true;
+                                break;
+                            } else {
+                                tranCnt += (i != dims[i]);
+                            }
+                        }
+
+                        if (tranCnt != 2 || IsDiff) continue;
+
+                        auto ffops = fop->getPredecessors();
+                        auto bops = op->getSuccessors();
+                        deleted_ops.insert(fop->getGuid());
+                        deleted_ops.insert(op->getGuid());
+
+                        deleted_tensors.insert(fop->getOutput()->getFuid());
+                        deleted_tensors.insert(op->getOutput()->getFuid());
+                        auto SavedTensor = fop->getInputs(0);
+                        SavedTensor->removeTarget(fop);
+
+                        for (auto &ffop : ffops) {
+                            ffop->removeSuccessors(fop);
+                            for (auto &bop : bops) ffop->addSuccessors(bop);
+                        }
+                        for (auto &bop : bops) {
+                            bop->removePredecessors(op);
+                            for (auto &ffop : ffops) bop->addPredecessors(ffop);
+                            SavedTensor->addTarget(bop);  
+                        }
+
+                        for (auto &bop : bops) {
+                            auto input = bop->getInputs(0);
+                            bop->replaceInput(input, SavedTensor);
+                        }
+
+                        // T1 -> OP -> T2 -> OP -> T3 -> OP
+                    }
+                } 
+            }
+            
+            if (op->getOpType() == OpType::MatMul) {
+                const Tensor& A = op->getInputs()[0];
+                const Tensor& B = op->getInputs()[1];
+                auto matop = std::dynamic_pointer_cast<MatmulObj>(op);
+
+                // T1 -> TransOP -> T2 -> MatOP -> T3
+
+                auto fop = A->getSource();
+                if (fop != nullptr && !deleted_ops.count(fop->getGuid()) && fop->getOpType() == OpType::Transpose) {
+                    auto transfop = std::dynamic_pointer_cast<TransposeObj>(fop);
+                    if (!transfop) continue;
+                    
+                    Shape dims = transfop->getPermute();
+                    if (dims.size() >= 2 &&
+                        dims[dims.size()-1] == dims.size()-2 &&
+                        dims[dims.size()-2] == dims.size()-1) {
+
+                        matop->setTransA(!matop->getTransA());
+                        auto ffops = fop->getPredecessors();
+
+                        deleted_ops.insert(fop->getGuid());
+                        deleted_tensors.insert(fop->getOutput()->getFuid()); 
+                        auto SavedTensor = fop->getInputs(0);
+
+                        matop->removePredecessors(fop);
+                        for (auto &ffop : ffops) {
+                            ffop->removeSuccessors(fop);
+                            ffop->addSuccessors(matop);
+                            matop->addPredecessors(ffop);
+                        }
+
+                        SavedTensor->removeTarget(fop);
+                        SavedTensor->addTarget(matop);
+                        auto input = matop->getInputs(0);
+                        matop->replaceInput(input, SavedTensor);
+                    }
+                }
+
+                fop = B->getSource();
+                if (fop != nullptr && fop->getOpType() == OpType::Transpose) {
+                    auto transfop = std::dynamic_pointer_cast<TransposeObj>(fop);
+                    if (!transfop) continue;
+                    
+                    Shape dims = transfop->getPermute();
+                    if (dims.size() >= 2 &&
+                        dims[dims.size()-1] == dims.size()-2 &&
+                        dims[dims.size()-2] == dims.size()-1) {
+
+                        matop->setTransB(!matop->getTransB());
+                        auto ffops = fop->getPredecessors();
+
+                        deleted_ops.insert(fop->getGuid());
+                        deleted_tensors.insert(fop->getOutput()->getFuid()); 
+                        auto SavedTensor = fop->getInputs(0);
+
+                        matop->removePredecessors(fop);
+                        for (auto &ffop : ffops) {
+                            ffop->removeSuccessors(fop);
+                            ffop->addSuccessors(matop);
+                            matop->addPredecessors(ffop);
+                        }
+
+                        SavedTensor->removeTarget(fop);
+                        SavedTensor->addTarget(matop);
+                        auto input = matop->getInputs(1);
+                        matop->replaceInput(input, SavedTensor);
+                    }
+                }
+            }
+        }
+
+        for (auto &op : ops) {
+            if (deleted_ops.find(op->getGuid()) == deleted_ops.end()) {
+                optimized_ops.push_back(op);
+            }
+        }
+
+        for (auto &tensor : tensors) {
+            if (deleted_tensors.find(tensor->getFuid()) == deleted_tensors.end()) {
+                optimized_tensors.push_back(tensor);
+            }
+        }
+
+        ops = std::move(optimized_ops);
+        tensors = std::move(optimized_tensors);
     }
 
     Tensor GraphObj::getTensor(int fuid) const

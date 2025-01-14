@@ -38,6 +38,10 @@ namespace infini
         if (transA) std::swap(a_dims[a_dims.size()-1], a_dims[a_dims.size()-2]); 
         if (transB) std::swap(b_dims[b_dims.size()-1], b_dims[b_dims.size()-2]);
 
+        m = a_dims[a_dims.size()-2];
+        n = b_dims[b_dims.size()-1];
+        k = a_dims[a_dims.size()-1];
+
         for (int i = 0; i < max_rank; i++) {
             if (i == 0) {
                 result[max_rank - 1 - i] = b_dims[b_dims.size() - 1];
