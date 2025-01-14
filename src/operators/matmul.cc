@@ -30,7 +30,7 @@ namespace infini
 
         const Tensor& A = inputs[0];
         const Tensor& B = inputs[1];
-        int max_rank = std::max(A->getDims().size(), B->getDims().size());
+        size_t max_rank = std::max(A->getDims().size(), B->getDims().size());
         Shape a_dims = A->getDims();
         Shape b_dims = B->getDims();
         Shape result(max_rank, 1);
