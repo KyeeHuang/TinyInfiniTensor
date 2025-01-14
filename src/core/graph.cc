@@ -135,7 +135,7 @@ namespace infini
                                 IsDiff = true;
                                 break;
                             } else {
-                                tranCnt += (i != dims[i]);
+                                tranCnt += ((int) i != dims[i]);
                             }
                         }
 
@@ -184,9 +184,9 @@ namespace infini
                     if (!transfop) continue;
                     
                     Shape dims = transfop->getPermute();
-                    if (dims.size() >= 2 &&
-                        dims[dims.size()-1] == dims.size()-2 &&
-                        dims[dims.size()-2] == dims.size()-1) {
+                    if (dims.size() >= (size_t)2 &&
+                        (size_t) dims[dims.size()-1] == dims.size()-2 &&
+                        (size_t) dims[dims.size()-2] == dims.size()-1) {
 
                         matop->setTransA(!matop->getTransA());
                         auto ffops = fop->getPredecessors();
@@ -215,9 +215,9 @@ namespace infini
                     if (!transfop) continue;
                     
                     Shape dims = transfop->getPermute();
-                    if (dims.size() >= 2 &&
-                        dims[dims.size()-1] == dims.size()-2 &&
-                        dims[dims.size()-2] == dims.size()-1) {
+                    if (dims.size() >= (size_t)2 &&
+                        (size_t) dims[dims.size()-1] == dims.size()-2 &&
+                        (size_t) dims[dims.size()-2] == dims.size()-1) {
 
                         matop->setTransB(!matop->getTransB());
                         auto ffops = fop->getPredecessors();
